@@ -1863,6 +1863,16 @@ async function boot() {
   });
 }
 
+// Ensure auth UI is in correct initial state
+(function(){
+  var btn = document.getElementById('auth-btn');
+  var lbl = document.getElementById('auth-mode-lbl');
+  var tog = document.getElementById('auth-toggle');
+  if(btn) btn.textContent = 'SIGN IN';
+  if(lbl) lbl.textContent = '// AUTHENTICATE';
+  if(tog) tog.textContent = 'CREATE ACCOUNT INSTEAD →';
+  authMode = 'signin';
+})();
 boot();
 
 function toggleUserMenu() {
