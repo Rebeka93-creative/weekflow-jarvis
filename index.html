@@ -573,7 +573,7 @@ function switchView(v){
   setNav(v);render();
 }
 
-function tdone(id){var i=items.find(function(i){return i.id===id;});if(i){i.done=!i.done;toast(i.done?"TASK COMPLETE":"REOPENED");}sv();render();}
+function tdone(id){var i=items.find(function(i){return i.id===id;});if(i){i.done=!i.done;dbUpsertItem(i);toast(i.done?"TASK COMPLETE":"REOPENED");}render();}
 function deli(id){items=items.filter(function(i){return i.id!==id;});if(xi===id)xi=null;dbDeleteItem(id);render();toast("ITEM DELETED");}
 function delp(pid){projects=projects.filter(function(p){return p.id!==pid;});items=items.filter(function(i){return i.proj!==pid;});if(ap===pid)ap=null;dbDeleteProject(pid);render();toast("PROJECT REMOVED");}
 function tex(id){xi=xi===id?null:id;if(cv==="week")renderWeek();else if(cv==="project")renderProj();}
@@ -885,6 +885,36 @@ function showIM(d,editing){
   document.getElementById("modal").classList.add("open");
   setTimeout(function(){document.getElementById("f-ttl").focus();},50);
 }
+
+function saveI(){
+  var ttl=document.getElementById("f-ttl").value.trim();if(!ttl)return;
+  var s=document.getElementById("f-sd").value||td();
+  var e=document.getElementById("f-ed").value||s;if(e<s)e=s;
+  var data={title:ttl,sd:s,ed:e,type:document.getElementById("f-type").value,
+    t:document.getElementById("f-t").value,
+    fb:document.getElementById("f-fb").value,
+    dur:document.getElementById("f-dur").value.trim(),
+    prio:document.getElementById("f-prio").value,
+    rdly:document.getElementById("f-rdly").checked,
+    proj:document.getElementById("f-proj").value,
+    prep:document.getElementById("f-prep").value.trim(),
+    notes:document.getElementById("f-notes").value.trim()};
+  if(mm==="edit"){
+    var idx=items.findIndex(function(i){return i.id===eid;});
+    if(idx>-1){items[idx]=Object.assign({},items[idx],data);dbUpsertItem(items[idx]);}
+    toast("ITEM UPDATED");
+  } else {
+    var ni=Object.assign({id:"i"+Date.now(),done:false},data);
+    items.push(ni);dbUpsertItem(ni);toast("ITEM CREATED");
+    setTimeout(function(){ jarvis('New item logged. '+data.title+'. Added to your schedule.'); },300);
+    var pd=pi(s),mn=gwd(0)[0],dm=new Date(pd),dw=dm.getDay();
+    dm.setDate(dm.getDate()+(dw===0?-6:1-dw));dm.setHours(0,0,0,0);
+    wo=Math.round((dm-mn)/604800000);
+    if(cv!=="project")cv="week";
+  }
+  cmod();render();
+}
+
 function openPM(editProj){
   var editing=!!editProj;
   mm=editing?"edit-project":"add-project";
@@ -1530,35 +1560,19 @@ function jarvisGreet() {
 
 // ── HOOK INTO APP EVENTS ──────────────────────────────────────────
 // Patch tdone to add voice
+// Voice feedback on task complete - called after tdone
 var _origTdone = tdone;
 tdone = function(id) {
   var item = items.find(function(i){ return i.id === id; });
   var wasDone = item ? item.done : false;
   _origTdone(id);
-  if(item) dbUpsertItem(item);
   if (item && !wasDone) {
-    var phrases = [
-      'Task complete, Sir.',
-      'Marking that as done.',
-      'Confirmed. One down.',
-      'Task closed. Well done.',
-      'Objective complete.'
-    ];
+    var phrases = ['Task complete, Sir.','Marking that as done.','Confirmed. One down.','Task closed. Well done.','Objective complete.'];
     jarvis(phrases[Math.floor(Math.random() * phrases.length)]);
   }
 };
 
-// Patch saveI to speak on create
-var _origSaveI = saveI;
-saveI = function() {
-  var titleEl = document.getElementById('f-ttl');
-  var title = titleEl ? titleEl.value.trim() : '';
-  var isEdit = (mm === 'edit');
-  _origSaveI();
-  if (!isEdit && title) {
-    jarvis('New item logged. ' + title + '. Added to your schedule.');
-  }
-};
+// saveI voice integrated directly into saveI function
 
 // Overdue alert — spoken once per session when overdue items exist
 var _overdueAlerted = false;
