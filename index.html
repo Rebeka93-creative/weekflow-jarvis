@@ -711,6 +711,15 @@ function renderProj(){
   if(cv!=="project"){c2.style.display="none";return;}
   c2.innerHTML="";c2.style.display="block";
 
+  // Always show header with + NEW PROJECT button
+  var topBar=document.createElement("div");
+  topBar.style.cssText="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;";
+  topBar.innerHTML=
+    '<div style="font-family:Space Mono,monospace;font-size:10px;color:#4cd7f6;letter-spacing:.14em;text-shadow:0 0 8px rgba(76,215,246,.4);">// PROJECTS <span style="color:#869397;">('+projects.length+')</span></div>'
+    +'<button onclick="openPM()" class="hud-btn" style="background:#4cd7f6;color:#0e1416;border:none;border-radius:.25rem;padding:7px 16px;font-family:Space Mono,monospace;font-size:10px;font-weight:700;letter-spacing:.1em;box-shadow:0 0 12px rgba(76,215,246,.25);display:flex;align-items:center;gap:6px;">'
+    +'<span style="font-size:14px;line-height:1;">+</span> NEW PROJECT</button>';
+  c2.appendChild(topBar);
+
   var filtered=projects.filter(function(p){return !ap||p.id===ap;});
   if(!filtered.length){
     c2.innerHTML='<div style="padding:60px;text-align:center;color:#869397;font-family:Space Mono,monospace;font-size:9px;letter-spacing:.1em;">'
