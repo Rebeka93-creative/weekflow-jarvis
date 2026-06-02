@@ -1768,12 +1768,21 @@ async function doAuth() {
   var email = document.getElementById('auth-email').value.trim();
   var pass  = document.getElementById('auth-pass').value;
   if (!email || !pass) { showAuthErr('Email and password required.'); return; }
+  // Ensure Supabase is initialized
+  if (!_supa) {
+    var creds = getCredentials();
+    if (!creds.url || !creds.key) {
+      showAuthErr('Supabase credentials missing — click CHANGE SUPABASE CREDENTIALS below.');
+      return;
+    }
+    initSupabase(creds.url, creds.key);
+  }
   var btn = document.getElementById('auth-btn');
   btn.textContent = 'AUTHENTICATING...';
   btn.disabled = true;
   var result = authMode === 'signin'
-    ? await _supa.auth.signInWithPassword({ email, password: pass })
-    : await _supa.auth.signUp({ email, password: pass });
+    ? await _supa.auth.signInWithPassword({ email: email, password: pass })
+    : await _supa.auth.signUp({ email: email, password: pass });
   btn.disabled = false;
   btn.textContent = authMode === 'signin' ? 'SIGN IN' : 'CREATE ACCOUNT';
   if (result.error) {
