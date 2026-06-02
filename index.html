@@ -1780,19 +1780,90 @@ async function doAuth() {
   var btn = document.getElementById('auth-btn');
   btn.textContent = 'AUTHENTICATING...';
   btn.disabled = true;
-  var result = authMode === 'signin'
-    ? await _supa.auth.signInWithPassword({ email: email, password: pass })
-    : await _supa.auth.signUp({ email: email, password: pass });
+
+  try {
+    if (authMode === 'signin') {
+      var res = await _supa.auth.signInWithPassword({ email: email, password: pass });
+      if (res.error) {
+        showAuthErr(res.error.message);
+      } else if (res.data && res.data.session) {
+        await launchApp(res.data.session);
+      }
+    } else {
+      var res = await _supa.auth.signUp({ email: email, password: pass });
+      if (res.error) {
+        showAuthErr(res.error.message);
+      } else if (res.data && res.data.session) {
+        // Email confirmation off — session returned immediately
+        await launchApp(res.data.session);
+      } else {
+        showAuthOk('// CHECK YOUR EMAIL TO CONFIRM YOUR ACCOUNT');
+      }
+    }
+  } catch(err) {
+    showAuthErr(err.message || 'Unknown error');
+  }
+
   btn.disabled = false;
   btn.textContent = authMode === 'signin' ? 'SIGN IN' : 'CREATE ACCOUNT';
-  if (result.error) {
-    showAuthErr(result.error.message);
-  } else if (authMode === 'signup' && !result.data.session) {
-    showAuthOk('// CHECK YOUR EMAIL TO CONFIRM YOUR ACCOUNT');
-  } else {
-    // Session established — onAuthStateChange will handle the rest
-  }
 }
+
+async function launchApp(session) {
+  _uid = session.user.id;
+  // Hide auth screen
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('user-menu-btn').style.display = '';
+  var lbl = document.getElementById('user-email-lbl');
+  if (lbl) lbl.textContent = session.user.email.split('@')[0].toUpperCase();
+  // Load data
+  await Promise.all([lv(), loadUserData()]);
+  switchView('week');
+  // Energy core
+  var t = wi(), d = t.filter(function(i){ return i.done; }).length;
+  startCoreCounter(t.length ? Math.round(d / t.length * 100) : 0);
+  setInterval(function(){
+    var ring = document.querySelector('.energy-ring');
+    if (ring) {
+      var base = parseFloat(ring.style.strokeDashoffset || '119');
+      ring.style.strokeDashoffset = base + (Math.random() * 3 - 1.5);
+    }
+  }, 2000);
+  setTimeout(function(){ jarvisGreet(); checkOverdueAlert(); }, 2000);
+}
+
+// ── BOOT ──────────────────────────────────────────────────────────
+async function boot() {
+  var creds = getCredentials();
+  if (!creds.url || !creds.key) {
+    document.getElementById('auth-config').style.display = '';
+    return;
+  }
+  initSupabase(creds.url, creds.key);
+
+  // Check for existing session first
+  try {
+    var sessionRes = await _supa.auth.getSession();
+    if (sessionRes.data && sessionRes.data.session) {
+      await launchApp(sessionRes.data.session);
+      return;
+    }
+  } catch(e) {}
+
+  // No session — listen for sign in / sign out
+  _supa.auth.onAuthStateChange(async function(event, session) {
+    if (event === 'SIGNED_IN' && session) {
+      await launchApp(session);
+    }
+    if (event === 'SIGNED_OUT') {
+      _uid = null;
+      items = []; projects = [];
+      document.getElementById('auth-screen').style.display = 'flex';
+      document.getElementById('user-menu-btn').style.display = 'none';
+    }
+  });
+}
+
+boot();
 
 function toggleUserMenu() {
   var d = document.getElementById('user-dropdown');
