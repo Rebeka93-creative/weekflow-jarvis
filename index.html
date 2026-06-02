@@ -885,15 +885,19 @@ function openPM(editProj){
     var sel=editing?editProj.ci===i:i===0;
     return '<div onclick="document.querySelectorAll(\'.pcsw\').forEach(function(x){x.style.outline=\'none\';x.style.transform=\'scale(1)\';});this.style.outline=\'2px solid #fff\';this.style.outlineOffset=\'2px\';this.style.transform=\'scale(1.2)\';document.getElementById(\'f-pci\').value=\''+i+'\'" class="pcsw hud-btn" style="width:22px;height:22px;border-radius:4px;background:'+c.bdr+';cursor:pointer;transition:all 150ms;'+(sel?'outline:2px solid #fff;outline-offset:2px;transform:scale(1.2);':'')+'" title="'+c.bdr+'"></div>';
   }).join('');
+  var pname   = editing ? ea(editProj.name)         : '';
+  var pdesc   = editing ? esc(editProj.desc||'')     : '';
+  var pdl     = editing ? ea(editProj.deadline||'')  : '';
+  var pci     = editing ? editProj.ci                : 0;
   document.getElementById("mbody").innerHTML=
     '<div style="margin-bottom:12px;"><div style="font-family:Space Mono,monospace;font-size:8px;color:#869397;letter-spacing:.1em;margin-bottom:5px;">PROJECT NAME</div>'+
-    '<input class="inp" id="f-pnm" value="'+(editing?'":ea(editProj.name)+'"':'')+'" placeholder="e.g. Product Launch Q3" autocomplete="off"/></div>'+
+    '<input class="inp" id="f-pnm" value="'+pname+'" placeholder="e.g. Product Launch Q3" autocomplete="off"/></div>'+
     '<div style="margin-bottom:12px;"><div style="font-family:Space Mono,monospace;font-size:8px;color:#869397;letter-spacing:.1em;margin-bottom:8px;">COLOR</div>'+
-    '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+colorPicker+'<input type="hidden" id="f-pci" value="'+(editing?editProj.ci:0)+'"/></div></div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+colorPicker+'<input type="hidden" id="f-pci" value="'+pci+'"/></div></div>'+
     '<div style="margin-bottom:12px;"><div style="font-family:Space Mono,monospace;font-size:8px;color:#869397;letter-spacing:.1em;margin-bottom:5px;">DESCRIPTION <span style="color:rgba(76,215,246,.4);">(optional)</span></div>'+
-    '<textarea class="inp" id="f-pdesc" placeholder="What is this project about..." style="min-height:60px;">'+(editing?esc(editProj.desc||''):'')+'</textarea></div>'+
+    '<textarea class="inp" id="f-pdesc" placeholder="What is this project about..." style="min-height:60px;">'+pdesc+'</textarea></div>'+
     '<div><div style="font-family:Space Mono,monospace;font-size:8px;color:#869397;letter-spacing:.1em;margin-bottom:5px;">PROJECT DEADLINE <span style="color:rgba(76,215,246,.4);">(optional)</span></div>'+
-    '<input class="inp" id="f-pdl" type="date" value="'+(editing?ea(editProj.deadline||''):'')+'"/></div>';
+    '<input class="inp" id="f-pdl" type="date" value="'+pdl+'"/></div>';
   document.getElementById("mfoot").innerHTML=
     '<button class="hud-btn" onclick="cmod()" style="background:transparent;color:#bcc9cd;border:1px solid rgba(76,215,246,.2);border-radius:.25rem;padding:8px 18px;font-family:Space Mono,monospace;font-size:10px;letter-spacing:.06em;">CANCEL</button>'+
     '<button class="hud-btn" onclick="saveP()" style="background:#4cd7f6;color:#0e1416;border:none;border-radius:.25rem;padding:8px 18px;font-family:Space Mono,monospace;font-size:10px;font-weight:700;letter-spacing:.1em;box-shadow:0 0 12px rgba(76,215,246,.3);">'+(editing?'SAVE':'CREATE')+'</button>';
