@@ -6,15 +6,6 @@
 <title>WEEKFLOW // S.Y.S.T.E.M. CORE</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<title>WEEKFLOW // S.Y.S.T.E.M. CORE</title>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<link rel="manifest" href="manifest.json"/>
-<meta name="theme-color" content="#4cd7f6"/>
-<meta name="apple-mobile-web-app-capable" content="yes"/>
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-<meta name="apple-mobile-web-app-title" content="WeekFlow"/>
-<link rel="apple-touch-icon" href="icon-192.png"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
 <script id="tailwind-config">
@@ -462,7 +453,7 @@ function normItem(r) {
   };
 }
 function normProject(r) {
-  return { id: r.id, name: r.name, ci: r.color_idx || 0 };
+  return { id: r.id, name: r.name, ci: r.color_idx || 0, desc: r.description || '', deadline: r.deadline || '' };
 }
 
 // ── Load all data from Supabase ──────────────────────────────────
@@ -523,7 +514,9 @@ async function dbUpsertProject(proj) {
   if (!_supa || !_uid) return;
   await _supa.from('projects').upsert({
     id: proj.id, user_id: _uid,
-    name: proj.name, color_idx: proj.ci
+    name: proj.name, color_idx: proj.ci,
+    description: proj.desc || null,
+    deadline: proj.deadline || null
   });
 }
 
@@ -714,50 +707,146 @@ function mkCard(item){
 }
 
 function renderProj(){
-  var c2=document.getElementById("project-view");if(cv!=="project"){c2.style.display="none";return;}c2.innerHTML="";c2.style.display="block";
+  var c2=document.getElementById("project-view");
+  if(cv!=="project"){c2.style.display="none";return;}
+  c2.innerHTML="";c2.style.display="block";
+
   var filtered=projects.filter(function(p){return !ap||p.id===ap;});
-  if(!filtered.length){c2.innerHTML='<div style="padding:40px;text-align:center;color:#869397;font-family:Space Mono,monospace;font-size:9px;letter-spacing:.1em;">// NO PROJECTS INITIALISED</div>';return;}
-  filtered.forEach(function(p){
-    var c=PC[p.ci%PC.length],pi2=items.filter(function(i){return i.proj===p.id;}).sort(function(a,b){return(a.sd||"").localeCompare(b.sd||"");});
-    var dn=pi2.filter(function(i){return i.done;}).length,pct=pi2.length?dn/pi2.length*100:0;
-    var sec=document.createElement("div");sec.className="proj-section";
-    var hd=document.createElement("div");hd.style.cssText="padding:12px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid "+c.bdr+"18;";
-    hd.innerHTML='<div style="width:7px;height:7px;border-radius:2px;background:'+c.bdr+';box-shadow:0 0 6px '+c.bdr+'66;flex-shrink:0;"></div>'
-      +'<div style="font-family:Space Mono,monospace;font-size:13px;color:'+c.txt+';text-shadow:0 0 8px '+c.bdr+'44;letter-spacing:.05em;">'+esc(p.name)+'</div>'
-      +'<div style="font-family:Space Mono,monospace;font-size:9px;color:#869397;margin-left:2px;">'+dn+"/"+pi2.length+' DONE</div>'
-      +'<div style="flex:1;max-width:100px;"><div class="hud-prog"><div class="hud-prog-fill" style="width:'+pct+'%;background:linear-gradient(90deg,'+c.bdr+','+c.bdr+'88)"></div></div></div>'
-      +'<div style="margin-left:auto;display:flex;gap:6px;">'
-      +'<button class="hud-btn" onclick="openAI(\''+fd(new Date())+'\',\''+p.id+'\')" style="background:transparent;color:#bcc9cd;border:1px solid rgba(76,215,246,.2);border-radius:.25rem;padding:4px 10px;font-family:Space Mono,monospace;font-size:9px;letter-spacing:.06em;">+ ADD</button>'
-      +'<button class="hud-btn" onclick="delp(\''+p.id+'\')" style="background:transparent;color:rgba(255,180,171,.4);border:1px solid rgba(255,180,171,.2);border-radius:.25rem;padding:4px 8px;font-family:Space Mono,monospace;font-size:10px;">\u00D7</button>'
+  if(!filtered.length){
+    c2.innerHTML='<div style="padding:60px;text-align:center;color:#869397;font-family:Space Mono,monospace;font-size:9px;letter-spacing:.1em;">'
+      +'<div style="font-size:32px;margin-bottom:12px;opacity:.3;">◈</div>'
+      +'// NO PROJECTS INITIALISED<br/><br/>'
+      +'<button onclick="openPM()" class="hud-btn" style="background:#4cd7f6;color:#0e1416;border:none;border-radius:.25rem;padding:8px 18px;font-family:Space Mono,monospace;font-size:10px;font-weight:700;letter-spacing:.1em;margin-top:8px;">+ CREATE FIRST PROJECT</button>'
       +'</div>';
-    sec.appendChild(hd);
-    if(!pi2.length){var em=document.createElement("div");em.style.cssText="padding:20px;text-align:center;color:#869397;font-family:Space Mono,monospace;font-size:9px;letter-spacing:.1em;";em.textContent="// NO ITEMS LOGGED";sec.appendChild(em);}
-    else{
-      var list=document.createElement("div");list.style.cssText="padding:0 10px 10px;display:flex;flex-direction:column;gap:4px;";
-      pi2.forEach(function(item){
-        var ov=iov(item);
-        var row=document.createElement("div");row.className="prow"+(item.done?" done":"");
-        if(ov&&!item.done)row.style.borderColor="rgba(255,180,171,.25)";
-        row.innerHTML='<div class="chkbox'+(item.done?" on":"")+'" style="border-color:'+(item.done?"#4cd7f6":c.bdr)+';cursor:pointer;" onclick="tdone(\''+item.id+'\')">'+(item.done?"\u2713":"")+'</div>'
-          +'<span style="font-size:8px;color:'+c.txt+';flex-shrink:0;">'+(TI[item.type]||"\u25B8")+'</span>'
-          +'<div style="flex:1;min-width:0;">'
-          +'<div style="font-family:Space Mono,monospace;font-size:12px;font-weight:500;color:'+(item.done?"#869397":"#dee3e6")+(item.done?';text-decoration:line-through':'')+';">'+esc(item.title)+'</div>'
-          +'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:2px;">'
-          +'<span class="chip" style="color:#bcc9cd;border-color:rgba(76,215,246,.15);background:transparent;">'+fdr(item.sd,item.ed)+(item.t?" \u00B7 "+item.t:"")+'</span>'
-          +(item.prio!=="medium"?'<span class="chip" style="color:'+(item.prio==="high"?"#ffb4ab":"#22C55E")+';border-color:'+(item.prio==="high"?"rgba(255,180,171,.3)":"rgba(34,197,94,.3)")+';background:transparent;">'+item.prio.toUpperCase()+'</span>':"")
-          +(item.dur?'<span class="chip" style="color:#869397;border-color:transparent;background:rgba(255,255,255,.03);">'+esc(item.dur)+'</span>':"")
-          +(item.prep?'<span class="chip" style="color:#869397;border-color:rgba(76,215,246,.1);">\u25C8 '+esc(item.prep.slice(0,28))+(item.prep.length>28?"\u2026":"")+'</span>':"")
-          +'</div></div>'
-          +'<div style="display:flex;gap:5px;flex-shrink:0;">'
-          +'<button class="hud-btn" onclick="openEI(\''+item.id+'\')" style="background:transparent;color:#bcc9cd;border:1px solid rgba(76,215,246,.18);border-radius:.25rem;padding:2px 8px;font-family:Space Mono,monospace;font-size:9px;">EDIT</button>'
-          +'<button class="hud-btn" onclick="deli(\''+item.id+'\')" style="background:transparent;color:#869397;border:none;font-size:13px;padding:2px 3px;" onmouseover="this.style.color=\'#ffb4ab\'" onmouseout="this.style.color=\'#869397\'">\u00D7</button>'
-          +'</div>';
-        list.appendChild(row);
-      });
-      sec.appendChild(list);
+    return;
+  }
+
+  filtered.forEach(function(p){
+    var c=PC[p.ci%PC.length];
+    var pItems=items.filter(function(i){return i.proj===p.id;});
+    var done=pItems.filter(function(i){return i.done;}).length;
+    var pct=pItems.length?done/pItems.length*100:0;
+
+    // Kanban columns
+    var todo      = pItems.filter(function(i){return !i.done && i.type!=='deadline';}).sort(function(a,b){return(a.sd||"").localeCompare(b.sd||"");});
+    var meetings  = pItems.filter(function(i){return i.type==='meeting'&&!i.done;}).sort(function(a,b){return(a.t||"99:99").localeCompare(b.t||"99:99");});
+    var milestones= pItems.filter(function(i){return i.type==='deadline';}).sort(function(a,b){return(a.ed||a.sd||"").localeCompare(b.ed||b.sd||"");});
+    var doneItems = pItems.filter(function(i){return i.done;});
+
+    var sec=document.createElement("div");
+    sec.className="proj-section";
+    sec.style.border="1px solid "+c.bdr+"22";
+    sec.style.marginBottom="20px";
+
+    // ── Project header ──
+    var daysLeft="";
+    if(p.deadline){
+      var dl=new Date(p.deadline+"T00:00:00"),now=new Date();
+      var diff=Math.ceil((dl-now)/86400000);
+      daysLeft=diff>0?diff+" DAYS LEFT":(diff===0?"DUE TODAY":"OVERDUE "+Math.abs(diff)+"D");
+      var dlColor=diff<=0?"#ffb4ab":diff<=7?"#ffb873":"#869397";
     }
+
+    var hdr=document.createElement("div");
+    hdr.style.cssText="padding:16px 20px;border-bottom:1px solid "+c.bdr+"18;";
+    hdr.innerHTML=
+      '<div style="display:flex;align-items:center;gap:12px;margin-bottom:'+(p.desc?'10px':'4px')+'">'
+      +'<div style="width:10px;height:10px;border-radius:3px;background:'+c.bdr+';box-shadow:0 0 8px '+c.bdr+'66;flex-shrink:0;"></div>'
+      +'<div style="font-family:Space Mono,monospace;font-size:14px;color:'+c.txt+';letter-spacing:.06em;font-weight:700;">'+esc(p.name)+'</div>'
+      +(daysLeft?'<div style="font-family:Space Mono,monospace;font-size:8px;color:'+dlColor+';border:1px solid '+dlColor+'44;padding:2px 7px;border-radius:3px;letter-spacing:.08em;">'+daysLeft+'</div>':'')
+      +'<div style="margin-left:auto;display:flex;align-items:center;gap:8px;">'
+      +'<div style="font-family:Space Mono,monospace;font-size:9px;color:#869397;">'+done+"/"+pItems.length+' DONE</div>'
+      +'<div style="width:80px;"><div class="hud-prog"><div class="hud-prog-fill" style="width:'+pct+'%;background:linear-gradient(90deg,'+c.bdr+','+c.bdr+'88)"></div></div></div>'
+      +'<button onclick="openPM(projects.find(function(x){return x.id===\''+p.id+'\'}))" class="hud-btn" style="background:transparent;color:#bcc9cd;border:1px solid rgba(76,215,246,.18);border-radius:.25rem;padding:3px 8px;font-family:Space Mono,monospace;font-size:9px;">EDIT</button>'
+      +'<button onclick="delp(\''+p.id+'\')" class="hud-btn" style="background:transparent;color:rgba(255,180,171,.4);border:1px solid rgba(255,180,171,.18);border-radius:.25rem;padding:3px 7px;font-size:11px;">×</button>'
+      +'</div></div>'
+      +(p.desc?'<div style="font-family:Space Mono,monospace;font-size:10px;color:#869397;margin-left:22px;letter-spacing:.04em;line-height:1.6;">'+esc(p.desc)+'</div>':'');
+    sec.appendChild(hdr);
+
+    // ── Kanban board ──
+    var board=document.createElement("div");
+    board.style.cssText="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:rgba(76,215,246,0.08);";
+
+    function kanbanCol(title, icon, colItems, addType, accentColor) {
+      var col=document.createElement("div");
+      col.style.cssText="background:rgba(14,20,22,0.6);padding:12px;min-height:180px;";
+
+      // Column header
+      var colHdr=document.createElement("div");
+      colHdr.style.cssText="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(76,215,246,0.1);";
+      colHdr.innerHTML=
+        '<div style="display:flex;align-items:center;gap:6px;">'
+        +'<span style="font-size:10px;color:'+accentColor+';">'+icon+'</span>'
+        +'<span style="font-family:Space Mono,monospace;font-size:8px;color:'+accentColor+';letter-spacing:.1em;">'+title+'</span>'
+        +'<span style="font-family:Space Mono,monospace;font-size:8px;color:#869397;background:rgba(255,255,255,.05);padding:1px 5px;border-radius:2px;">'+colItems.length+'</span>'
+        +'</div>'
+        +(addType?'<button onclick="openProjectItem(\''+p.id+'\',\''+addType+'\')" class="hud-btn" style="background:transparent;border:1px dashed rgba(76,215,246,.25);border-radius:.25rem;padding:2px 6px;font-family:Space Mono,monospace;font-size:9px;color:#869397;letter-spacing:.06em;">+</button>':'');
+      col.appendChild(colHdr);
+
+      // Items
+      if(!colItems.length){
+        var empty=document.createElement("div");
+        empty.style.cssText="font-family:Space Mono,monospace;font-size:8px;color:#3a5570;text-align:center;padding:16px 0;letter-spacing:.06em;";
+        empty.textContent="// EMPTY";
+        col.appendChild(empty);
+      } else {
+        colItems.forEach(function(item){
+          var card=document.createElement("div");
+          card.style.cssText="background:rgba(14,20,22,0.8);border:1px solid "+c.bdr+"22;border-left:2px solid "+(item.done?"#3a5570":c.bdr)+";border-radius:.25rem;padding:8px 10px;margin-bottom:6px;cursor:pointer;transition:all 150ms;";
+          card.onmouseover=function(){card.style.borderColor=c.bdr+"66";card.style.transform="translateY(-1px)";};
+          card.onmouseout=function(){card.style.borderColor=c.bdr+"22";card.style.transform="translateY(0)";};
+
+          var timeInfo=item.t?(item.fb?item.t+"–"+item.fb:item.t):(item.fb?"by "+item.fb:"");
+          var dateInfo=fdr(item.sd,item.ed);
+
+          card.innerHTML=
+            '<div style="display:flex;align-items:flex-start;gap:6px;">'
+            +'<div class="chkbox'+(item.done?" on":"")+'" style="border-color:'+(item.done?"#4cd7f6":c.bdr)+';flex-shrink:0;margin-top:1px;" onclick="event.stopPropagation();tdone(\''+item.id+'\');renderProj();">'+(item.done?"✓":"")+'</div>'
+            +'<div style="flex:1;min-width:0;">'
+            +'<div style="font-family:Space Mono,monospace;font-size:10px;font-weight:500;color:'+(item.done?"#869397":"#dee3e6")+(item.done?";text-decoration:line-through":"")+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:4px;">'+esc(item.title)+'</div>'
+            +'<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">'
+            +(dateInfo?'<span style="font-family:Space Mono,monospace;font-size:8px;color:#869397;">'+dateInfo+'</span>':'')
+            +(timeInfo?'<span style="font-family:Space Mono,monospace;font-size:8px;color:#4cd7f6;">'+esc(timeInfo)+'</span>':'')
+            +(item.prio==="high"?'<span style="font-family:Space Mono,monospace;font-size:7px;color:#ffb4ab;border:1px solid rgba(255,180,171,.3);padding:0 4px;border-radius:2px;">HIGH</span>':"")
+            +(item.prep?'<span style="font-family:Space Mono,monospace;font-size:8px;color:#869397;">◈ '+esc(item.prep.slice(0,20))+(item.prep.length>20?"…":"")+'</span>':"")
+            +'</div>'
+            +'</div>'
+            +'<button onclick="event.stopPropagation();openEI(\''+item.id+'\')" class="hud-btn" style="background:transparent;border:none;color:#3a5570;font-size:11px;padding:0 2px;flex-shrink:0;" onmouseover="this.style.color=\'#4cd7f6\'" onmouseout="this.style.color=\'#3a5570\'">✎</button>'
+            +'</div>';
+          col.appendChild(card);
+        });
+      }
+      return col;
+    }
+
+    board.appendChild(kanbanCol("TASKS",     "▸", todo,       "task",     "#4cd7f6"));
+    board.appendChild(kanbanCol("MEETINGS",  "◆", meetings,   "meeting",  "#d0bcff"));
+    board.appendChild(kanbanCol("MILESTONES","⬟", milestones, "deadline", "#ffb873"));
+    board.appendChild(kanbanCol("DONE",      "✓", doneItems,  null,       "#22C55E"));
+
+    sec.appendChild(board);
+
+    // ── Project notes ──
+    var notesKey="wfsys_pnotes_"+p.id;
+    var notesVal=localStorage.getItem(notesKey)||"";
+    var notesRow=document.createElement("div");
+    notesRow.style.cssText="padding:12px 16px;border-top:1px solid rgba(76,215,246,0.08);display:flex;align-items:flex-start;gap:10px;";
+    notesRow.innerHTML=
+      '<span style="font-family:Space Mono,monospace;font-size:8px;color:#869397;letter-spacing:.1em;padding-top:10px;flex-shrink:0;">NOTES</span>'
+      +'<textarea id="pnotes-'+p.id+'" placeholder="// Project notes, links, decisions..." style="flex:1;background:transparent;border:none;color:#bcc9cd;font-family:Space Mono,monospace;font-size:10px;resize:none;outline:none;line-height:1.6;min-height:40px;letter-spacing:.02em;">'+esc(notesVal)+'</textarea>';
+    var ta=notesRow.querySelector("textarea");
+    if(ta){
+      ta.oninput=function(){localStorage.setItem(notesKey,this.value);};
+    }
+    sec.appendChild(notesRow);
     c2.appendChild(sec);
   });
+}
+
+// Open item modal pre-filled for a specific project + type
+function openProjectItem(projId, type) {
+  mm="add"; eid=null;
+  showIM({sd:td(),ed:td(),type:type,title:"",proj:projId,t:"",fb:"",dur:"",prio:"medium",rdly:false,prep:"",notes:"",done:false},false);
 }
 
 function openAI(ds,pid){
@@ -787,22 +876,45 @@ function showIM(d,editing){
   document.getElementById("modal").classList.add("open");
   setTimeout(function(){document.getElementById("f-ttl").focus();},50);
 }
-function openPM(){
-  mm="proj";document.getElementById("mtitle").textContent="// NEW PROJECT";
-  document.getElementById("mbody").innerHTML='<div style="margin-bottom:11px;"><div style="font-family:Space Mono,monospace;font-size:8px;color:#869397;margin-bottom:5px;letter-spacing:.1em;">PROJECT NAME</div><input class="inp" id="f-pnm" placeholder="e.g. Q3 Campaign" autocomplete="off"/></div>';
-  document.getElementById("mfoot").innerHTML='<button class="hud-btn" onclick="cmod()" style="background:transparent;color:#bcc9cd;border:1px solid rgba(76,215,246,.2);border-radius:.25rem;padding:8px 18px;font-family:Space Mono,monospace;font-size:10px;letter-spacing:.06em;">CANCEL</button><button class="hud-btn" onclick="saveP()" style="background:#4cd7f6;color:#0e1416;border:none;border-radius:.25rem;padding:8px 18px;font-family:Space Mono,monospace;font-size:10px;font-weight:700;letter-spacing:.1em;box-shadow:0 0 12px rgba(76,215,246,.3);">CREATE</button>';
+function openPM(editProj){
+  var editing=!!editProj;
+  mm=editing?"edit-project":"add-project";
+  if(editing)editingItemId=editProj.id;
+  document.getElementById("mtitle").textContent=editing?"// EDIT PROJECT":"// NEW PROJECT";
+  var colorPicker=PC.map(function(c,i){
+    var sel=editing?editProj.ci===i:i===0;
+    return '<div onclick="document.querySelectorAll(\'.pcsw\').forEach(function(x){x.style.outline=\'none\';x.style.transform=\'scale(1)\';});this.style.outline=\'2px solid #fff\';this.style.outlineOffset=\'2px\';this.style.transform=\'scale(1.2)\';document.getElementById(\'f-pci\').value=\''+i+'\'" class="pcsw hud-btn" style="width:22px;height:22px;border-radius:4px;background:'+c.bdr+';cursor:pointer;transition:all 150ms;'+(sel?'outline:2px solid #fff;outline-offset:2px;transform:scale(1.2);':'')+'" title="'+c.bdr+'"></div>';
+  }).join('');
+  document.getElementById("mbody").innerHTML=
+    '<div style="margin-bottom:12px;"><div style="font-family:Space Mono,monospace;font-size:8px;color:#869397;letter-spacing:.1em;margin-bottom:5px;">PROJECT NAME</div>'+
+    '<input class="inp" id="f-pnm" value="'+(editing?'":ea(editProj.name)+'"':'')+'" placeholder="e.g. Product Launch Q3" autocomplete="off"/></div>'+
+    '<div style="margin-bottom:12px;"><div style="font-family:Space Mono,monospace;font-size:8px;color:#869397;letter-spacing:.1em;margin-bottom:8px;">COLOR</div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+colorPicker+'<input type="hidden" id="f-pci" value="'+(editing?editProj.ci:0)+'"/></div></div>'+
+    '<div style="margin-bottom:12px;"><div style="font-family:Space Mono,monospace;font-size:8px;color:#869397;letter-spacing:.1em;margin-bottom:5px;">DESCRIPTION <span style="color:rgba(76,215,246,.4);">(optional)</span></div>'+
+    '<textarea class="inp" id="f-pdesc" placeholder="What is this project about..." style="min-height:60px;">'+(editing?esc(editProj.desc||''):'')+'</textarea></div>'+
+    '<div><div style="font-family:Space Mono,monospace;font-size:8px;color:#869397;letter-spacing:.1em;margin-bottom:5px;">PROJECT DEADLINE <span style="color:rgba(76,215,246,.4);">(optional)</span></div>'+
+    '<input class="inp" id="f-pdl" type="date" value="'+(editing?ea(editProj.deadline||''):'')+'"/></div>';
+  document.getElementById("mfoot").innerHTML=
+    '<button class="hud-btn" onclick="cmod()" style="background:transparent;color:#bcc9cd;border:1px solid rgba(76,215,246,.2);border-radius:.25rem;padding:8px 18px;font-family:Space Mono,monospace;font-size:10px;letter-spacing:.06em;">CANCEL</button>'+
+    '<button class="hud-btn" onclick="saveP()" style="background:#4cd7f6;color:#0e1416;border:none;border-radius:.25rem;padding:8px 18px;font-family:Space Mono,monospace;font-size:10px;font-weight:700;letter-spacing:.1em;box-shadow:0 0 12px rgba(76,215,246,.3);">'+(editing?'SAVE':'CREATE')+'</button>';
   document.getElementById("modal").classList.add("open");
-  setTimeout(function(){var el=document.getElementById("f-pnm");el.focus();el.addEventListener("keydown",function(e){if(e.key==="Enter")saveP();});},50);
+  setTimeout(function(){document.getElementById("f-pnm").focus();},50);
 }
-function saveI(){
-  var ttl=document.getElementById("f-ttl").value.trim();if(!ttl)return;
-  var s=document.getElementById("f-sd").value||td(),e=document.getElementById("f-ed").value||s;if(e<s)e=s;
-  var data={title:ttl,sd:s,ed:e,type:document.getElementById("f-type").value,t:document.getElementById("f-t").value,fb:document.getElementById("f-fb").value,dur:document.getElementById("f-dur").value.trim(),prio:document.getElementById("f-prio").value,rdly:document.getElementById("f-rdly").checked,proj:document.getElementById("f-proj").value,prep:document.getElementById("f-prep").value.trim(),notes:document.getElementById("f-notes").value.trim()};
-  if(mm==="edit"){var idx=items.findIndex(function(i){return i.id===eid;});if(idx>-1){items[idx]=Object.assign({},items[idx],data);dbUpsertItem(items[idx]);}toast("ITEM UPDATED");}
-  else{var ni=Object.assign({id:"i"+Date.now(),done:false},data);items.push(ni);dbUpsertItem(ni);toast("ITEM CREATED");var pd=pi(s),mn=gwd(0)[0],dm=new Date(pd),dw=dm.getDay();dm.setDate(dm.getDate()+(dw===0?-6:1-dw));dm.setHours(0,0,0,0);wo=Math.round((dm-mn)/604800000);if(cv!=="project")cv="week";}
-  sv();cmod();render();
+function saveP(){
+  var n=document.getElementById("f-pnm").value.trim();if(!n)return;
+  var ci=parseInt(document.getElementById("f-pci").value)||0;
+  var desc=document.getElementById("f-pdesc").value.trim();
+  var deadline=document.getElementById("f-pdl").value;
+  if(mm==="edit-project"){
+    var idx=projects.findIndex(function(p){return p.id===editingItemId;});
+    if(idx>-1){projects[idx]=Object.assign({},projects[idx],{name:n,ci:ci,desc:desc,deadline:deadline});dbUpsertProject(projects[idx]);}
+    toast("PROJECT UPDATED");
+  } else {
+    var np={id:"p"+Date.now(),name:n,ci:ci,desc:desc,deadline:deadline};
+    projects.push(np);dbUpsertProject(np);toast("PROJECT CREATED");
+  }
+  cmod();render();
 }
-function saveP(){var n=document.getElementById("f-pnm").value.trim();if(!n)return;var np={id:"p"+Date.now(),name:n,ci:projects.length%PC.length};projects.push(np);dbUpsertProject(np);cmod();render();toast("PROJECT CREATED");}
 function cmo(e){if(e.target===document.getElementById("modal"))cmod();}
 function cmod(){document.getElementById("modal").classList.remove("open");}
 function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
