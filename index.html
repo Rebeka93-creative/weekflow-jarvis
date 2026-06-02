@@ -413,7 +413,7 @@ var PC=[
   {bg:"rgba(0,128,255,.1)",   bdr:"#0080FF",txt:"#0080FF"},
   {bg:"rgba(244,114,182,.1)", bdr:"#F472B6",txt:"#F472B6"}
 ];
-var wo=0,cv="week",ap=null,xi=null,mm=null,eid=null,cxid=null,sq="",did=null;
+var wo=0,cv="week",ap=null,xi=null,mm=null,eid=null,editingItemId=null,cxid=null,sq="",did=null;
 function td(){return fd(new Date());}
 function od(n){var d=new Date();d.setDate(d.getDate()+n);return fd(d);}
 function fd(d){return d.toISOString().slice(0,10);}
@@ -1412,6 +1412,7 @@ function setMusicVol(v) {
 // Fixes: voice loading race, Chrome cancel() drop, call flooding
 // ═══════════════════════════════════════════════════════════════
 var jarvisEnabled = true;
+var hasGreeted = false;
 var jarvisVoice   = null;      // cached once voices load
 var jarvisQueue   = [];        // pending utterances
 var jarvisSpeaking = false;    // debounce flag
@@ -1900,64 +1901,7 @@ async function doSignOut() {
   await _supa.auth.signOut();
 }
 
-// ── BOOT ──────────────────────────────────────────────────────────
-async function boot() {
-  var creds = getCredentials();
-
-  // No credentials yet — show config panel
-  if (!creds.url || !creds.key) {
-    document.getElementById('auth-config').style.display = '';
-    return;
-  }
-
-  initSupabase(creds.url, creds.key);
-
-  // Listen to auth state changes
-  _supa.auth.onAuthStateChange(async function(event, session) {
-    if (session) {
-      _uid = session.user.id;
-
-      // Hide auth screen, show app
-      document.getElementById('auth-screen').style.display = 'none';
-      document.getElementById('user-menu-btn').style.display = '';
-      var lbl = document.getElementById('user-email-lbl');
-      if (lbl) lbl.textContent = session.user.email.split('@')[0].toUpperCase();
-
-      // Load data then render
-      await Promise.all([lv(), loadUserData()]);
-      switchView('week');
-
-      // Start energy core
-      var t = wi(), d = t.filter(function(i){ return i.done; }).length;
-      startCoreCounter(t.length ? Math.round(d / t.length * 100) : 0);
-      setInterval(function(){
-        var ring = document.querySelector('.energy-ring');
-        if (ring) {
-          var base = parseFloat(ring.style.strokeDashoffset || '119');
-          ring.style.strokeDashoffset = base + (Math.random() * 3 - 1.5);
-        }
-      }, 2000);
-
-      // Jarvis greeting
-      setTimeout(function(){ jarvisGreet(); checkOverdueAlert(); }, 2000);
-
-    } else {
-      // Signed out — show auth screen
-      _uid = null;
-      items = []; projects = [];
-      document.getElementById('auth-screen').style.display = 'flex';
-      document.getElementById('user-menu-btn').style.display = 'none';
-    }
-  });
-
-  // Check existing session
-  var { data: { session } } = await _supa.auth.getSession();
-  if (!session) {
-    // No session — auth screen is already visible, nothing to do
-  }
-}
-
-boot();
+// boot() already called above
 </script>
 
 <!-- ── AUTH SCREEN ── -->
