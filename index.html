@@ -416,7 +416,7 @@ var PC=[
 var wo=0,cv="week",ap=null,xi=null,mm=null,eid=null,editingItemId=null,cxid=null,sq="",did=null;
 function td(){return fd(new Date());}
 function od(n){var d=new Date();d.setDate(d.getDate()+n);return fd(d);}
-function fd(d){return d.toISOString().slice(0,10);}
+function fd(d){var y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');return y+'-'+m+'-'+day;}
 
 var projects=[{id:"p1",name:"Product Launch",ci:0},{id:"p2",name:"Q2 Report",ci:1},{id:"p3",name:"Website Redesign",ci:2}];
 var items=[
