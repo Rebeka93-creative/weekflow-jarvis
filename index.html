@@ -229,7 +229,7 @@ textarea.inp{resize:vertical;min-height:76px;line-height:1.6;}
   <div style="margin-left:auto;display:flex;align-items:center;gap:10px;">
     <span style="font-family:Space Mono,monospace;font-size:8px;color:#869397;">VOL</span>
     <input type="range" min="0" max="1" step="0.05" value="0.3" id="aud-vol" oninput="setMusicVol(this.value)" style="width:60px;accent-color:#4cd7f6;cursor:pointer;"/>
-    <button onclick="toggleJarvis()" id="jarvis-toggle" class="hud-btn" style="background:rgba(76,215,246,.1);border:1px solid rgba(76,215,246,.3);border-radius:.25rem;padding:4px 10px;font-family:Space Mono,monospace;font-size:9px;color:#4cd7f6;letter-spacing:.08em;">&#127908; J.A.R.V.I.S ON</button>
+    <button onclick="toggleJarvis()" id="jarvis-toggle" class="hud-btn" style="background:rgba(76,215,246,.1);border:1px solid rgba(76,215,246,.3);border-radius:.25rem;padding:4px 10px;font-family:Space Mono,monospace;font-size:9px;color:#4cd7f6;letter-spacing:.08em;">&#127908; J.A.R.V.I.S ON</button><button onclick="openJarvisSettings()" class="hud-btn" style="background:transparent;border:1px solid rgba(76,215,246,.2);border-radius:.25rem;padding:4px 8px;font-family:Space Mono,monospace;font-size:9px;color:#869397;letter-spacing:.08em;" title="Voice settings">&#9881;</button>
   </div>
 </div>
 <style>
@@ -906,7 +906,13 @@ function saveI(){
   } else {
     var ni=Object.assign({id:"i"+Date.now(),done:false},data);
     items.push(ni);dbUpsertItem(ni);toast("ITEM CREATED");
-    setTimeout(function(){ jarvis('New item logged. '+data.title+'. Added to your schedule.'); },300);
+    setTimeout(function(){
+      if (data.prio === 'high') {
+        jarvis(highPrioResponses[Math.floor(Math.random() * highPrioResponses.length)] + ' ' + data.title + '.');
+      } else {
+        jarvis('New item logged. ' + data.title + '. Added to your schedule.');
+      }
+    }, 300);
     var pd=pi(s),mn=gwd(0)[0],dm=new Date(pd),dw=dm.getDay();
     dm.setDate(dm.getDate()+(dw===0?-6:1-dw));dm.setHours(0,0,0,0);
     wo=Math.round((dm-mn)/604800000);
@@ -1438,105 +1444,159 @@ function setMusicVol(v) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// J.A.R.V.I.S VOICE — Web Speech API (robust implementation)
-// Fixes: voice loading race, Chrome cancel() drop, call flooding
+// J.A.R.V.I.S VOICE — ElevenLabs TTS + Web Speech API fallback
 // ═══════════════════════════════════════════════════════════════
-var jarvisEnabled = true;
-var hasGreeted = false;
-var jarvisVoice   = null;      // cached once voices load
-var jarvisQueue   = [];        // pending utterances
-var jarvisSpeaking = false;    // debounce flag
-var jarvisLastText = '';       // dedup identical rapid calls
+var jarvisEnabled  = true;
+var hasGreeted     = false;
+var jarvisApiKey   = localStorage.getItem('wfsys_el_key') || '';
+// Best ElevenLabs voice for Jarvis: "Adam" — deep, authoritative
+var jarvisVoiceId  = localStorage.getItem('wfsys_el_voice') || 'pNInz6obpgDQGcFmaJgB';
+var jarvisQueue    = [];
+var jarvisSpeaking = false;
+var jarvisLastText = '';
+var jarvisAudio    = null; // current HTMLAudio element
 
-function loadJarvisVoice() {
-  var voices = window.speechSynthesis.getVoices();
+// ── Web Speech API fallback ───────────────────────────────────
+var wsFallbackVoice = null;
+function loadWSVoice() {
+  var voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
   if (!voices.length) return null;
-  var preferred = [
-    'Google UK English Male',
-    'Microsoft George - English (United Kingdom)',
-    'Daniel',
-    'Microsoft David Desktop',
-    'Alex',
-    'Google US English'
-  ];
+  var preferred = ['Microsoft Guy Online','Microsoft Aria Online','Google UK English Male','Daniel','Microsoft David Desktop','Alex'];
   var found = null;
   for (var i = 0; i < preferred.length; i++) {
-    found = voices.find(function(v) {
-      return v.name === preferred[i] || v.name.indexOf(preferred[i].split(' ')[0]) > -1;
-    });
+    found = voices.find(function(v){ return v.name.indexOf(preferred[i].split(' ')[0]) > -1 || v.name === preferred[i]; });
     if (found) break;
   }
   if (!found) found = voices.find(function(v){ return /en.GB/i.test(v.lang); });
   if (!found) found = voices.find(function(v){ return /en/i.test(v.lang); });
   return found || null;
 }
+if (window.speechSynthesis) {
+  wsFallbackVoice = loadWSVoice();
+  window.speechSynthesis.onvoiceschanged = function(){ wsFallbackVoice = loadWSVoice(); };
+}
 
-function jarvisSpeak(text) {
+function wsFallbackSpeak(text) {
   if (!window.speechSynthesis) return;
   var u = new SpeechSynthesisUtterance(text);
-  u.rate   = 0.88;
-  u.pitch  = 0.75;
-  u.volume = 0.92;
-  if (jarvisVoice) u.voice = jarvisVoice;
-  u.onend = function() {
-    jarvisSpeaking = false;
-    if (jarvisQueue.length) {
-      var next = jarvisQueue.shift();
-      setTimeout(function(){ jarvisSpeak(next); }, 120);
-    }
-  };
-  u.onerror = function() {
-    jarvisSpeaking = false;
-  };
+  u.rate = 0.88; u.pitch = 0.72; u.volume = 0.92;
+  if (wsFallbackVoice) u.voice = wsFallbackVoice;
+  u.onend = function(){ jarvisSpeaking = false; drainQueue(); };
+  u.onerror = function(){ jarvisSpeaking = false; drainQueue(); };
   jarvisSpeaking = true;
   window.speechSynthesis.speak(u);
 }
 
+// ── ElevenLabs TTS ───────────────────────────────────────────
+async function elSpeak(text) {
+  try {
+    var res = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + jarvisVoiceId + '/stream', {
+      method: 'POST',
+      headers: {
+        'xi-api-key': jarvisApiKey,
+        'Content-Type': 'application/json',
+        'Accept': 'audio/mpeg'
+      },
+      body: JSON.stringify({
+        text: text,
+        model_id: 'eleven_monolingual_v1',
+        voice_settings: { stability: 0.55, similarity_boost: 0.85, style: 0.1, use_speaker_boost: true }
+      })
+    });
+    if (!res.ok) throw new Error('EL error ' + res.status);
+    var blob = await res.blob();
+    var url  = URL.createObjectURL(blob);
+    if (jarvisAudio) { jarvisAudio.pause(); URL.revokeObjectURL(jarvisAudio.src); }
+    jarvisAudio = new Audio(url);
+    jarvisAudio.volume = 0.92;
+    jarvisAudio.onended = function(){ jarvisSpeaking = false; drainQueue(); URL.revokeObjectURL(url); };
+    jarvisAudio.onerror = function(){ jarvisSpeaking = false; drainQueue(); };
+    jarvisSpeaking = true;
+    jarvisAudio.play();
+  } catch(err) {
+    console.warn('ElevenLabs TTS failed, falling back to Web Speech:', err.message);
+    wsFallbackSpeak(text);
+  }
+}
+
+function drainQueue() {
+  if (jarvisQueue.length) {
+    var next = jarvisQueue.shift();
+    setTimeout(function(){ speakNow(next); }, 180);
+  }
+}
+
+function speakNow(text) {
+  if (jarvisApiKey) {
+    elSpeak(text);
+  } else {
+    wsFallbackSpeak(text);
+  }
+}
+
 function jarvis(text) {
   if (!jarvisEnabled) return;
-  if (!window.speechSynthesis) return;
   if (!text || !text.trim()) return;
-  // Deduplicate: drop identical call within 2 seconds
   if (text === jarvisLastText) return;
   jarvisLastText = text;
-  setTimeout(function(){ if(jarvisLastText===text) jarvisLastText=''; }, 2000);
-
-  // Ensure voice is loaded
-  if (!jarvisVoice) jarvisVoice = loadJarvisVoice();
-
+  setTimeout(function(){ if(jarvisLastText === text) jarvisLastText = ''; }, 2500);
   if (jarvisSpeaking) {
-    // Queue max 1 pending — drop older pending to avoid long backlogs
-    jarvisQueue = [text];
+    jarvisQueue = [text]; // max 1 pending
   } else {
-    // Small delay after any prior cancel so Chrome doesn't drop it
-    setTimeout(function(){ jarvisSpeak(text); }, 80);
+    setTimeout(function(){ speakNow(text); }, 80);
   }
+}
+
+function stopJarvis() {
+  if (jarvisAudio) { jarvisAudio.pause(); jarvisAudio = null; }
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
+  jarvisQueue = [];
+  jarvisSpeaking = false;
 }
 
 function toggleJarvis() {
   jarvisEnabled = !jarvisEnabled;
-  if (!jarvisEnabled) {
-    window.speechSynthesis.cancel();
-    jarvisQueue = [];
-    jarvisSpeaking = false;
-  }
+  if (!jarvisEnabled) stopJarvis();
   var btn = document.getElementById('jarvis-toggle');
   if (btn) {
     btn.style.background = jarvisEnabled ? 'rgba(76,215,246,.1)' : 'transparent';
     btn.style.color = jarvisEnabled ? '#4cd7f6' : '#869397';
     btn.innerHTML = '&#127908; J.A.R.V.I.S ' + (jarvisEnabled ? 'ON' : 'OFF');
   }
-  if (jarvisEnabled) {
-    setTimeout(function(){ jarvis('J.A.R.V.I.S. reactivated. Standing by.'); }, 200);
-  }
+  if (jarvisEnabled) setTimeout(function(){ jarvis('J.A.R.V.I.S. reactivated. All systems nominal.'); }, 200);
 }
 
-// Load voices — both immediate and via the async callback
-if (window.speechSynthesis) {
-  jarvisVoice = loadJarvisVoice();
-  window.speechSynthesis.onvoiceschanged = function() {
-    jarvisVoice = loadJarvisVoice();
-  };
+// ── Settings panel ────────────────────────────────────────────
+function openJarvisSettings() {
+  document.getElementById("mtitle").textContent = "// J.A.R.V.I.S VOICE SETTINGS";
+  document.getElementById("mbody").innerHTML =
+    '<div style="margin-bottom:12px;"><div style="font-family:Space Mono,monospace;font-size:8px;color:#869397;letter-spacing:.1em;margin-bottom:5px;">ELEVENLABS API KEY</div>'
+    +'<input class="inp" id="el-key" value="'+ea(jarvisApiKey)+'" placeholder="sk_..." type="password"/>'
+    +'<div style="font-family:Space Mono,monospace;font-size:8px;color:#869397;margin-top:5px;">Get free key at <a href="https://elevenlabs.io" target="_blank" style="color:#4cd7f6;">elevenlabs.io</a></div></div>'
+    +'<div style="margin-bottom:12px;"><div style="font-family:Space Mono,monospace;font-size:8px;color:#869397;letter-spacing:.1em;margin-bottom:5px;">VOICE ID</div>'
+    +'<select class="inp" id="el-voice">'
+    +'<option value="pNInz6obpgDQGcFmaJgB"'+(jarvisVoiceId==='pNInz6obpgDQGcFmaJgB'?' selected':'')+'>Adam (deep, authoritative) — recommended</option>'
+    +'<option value="VR6AewLTigWG4xSOukaG"'+(jarvisVoiceId==='VR6AewLTigWG4xSOukaG'?' selected':'')+'>Arnold (strong, confident)</option>'
+    +'<option value="ErXwobaYiN019PkySvjV"'+(jarvisVoiceId==='ErXwobaYiN019PkySvjV'?' selected':'')+'>Antoni (warm, professional)</option>'
+    +'<option value="yoZ06aMxZJJ28mfd3POQ"'+(jarvisVoiceId==='yoZ06aMxZJJ28mfd3POQ'?' selected':'')+'>Sam (calm, measured)</option>'
+    +'</select></div>'
+    +'<div style="margin-bottom:4px;"><button onclick="testJarvisVoice()" class="hud-btn" style="background:rgba(76,215,246,.1);border:1px solid rgba(76,215,246,.3);border-radius:.25rem;padding:6px 14px;font-family:Space Mono,monospace;font-size:9px;color:#4cd7f6;letter-spacing:.08em;">▶ TEST VOICE</button></div>';
+  document.getElementById("mfoot").innerHTML =
+    '<button class="hud-btn" onclick="cmod()" style="background:transparent;color:#bcc9cd;border:1px solid rgba(76,215,246,.2);border-radius:.25rem;padding:8px 18px;font-family:Space Mono,monospace;font-size:10px;letter-spacing:.06em;">CANCEL</button>'
+    +'<button class="hud-btn" onclick="saveJarvisSettings()" style="background:#4cd7f6;color:#0e1416;border:none;border-radius:.25rem;padding:8px 18px;font-family:Space Mono,monospace;font-size:10px;font-weight:700;letter-spacing:.1em;">SAVE</button>';
+  document.getElementById("modal").classList.add("open");
+}
+function saveJarvisSettings() {
+  jarvisApiKey  = document.getElementById('el-key').value.trim();
+  jarvisVoiceId = document.getElementById('el-voice').value;
+  localStorage.setItem('wfsys_el_key',   jarvisApiKey);
+  localStorage.setItem('wfsys_el_voice', jarvisVoiceId);
+  cmod(); toast('JARVIS VOICE UPDATED');
+}
+function testJarvisVoice() {
+  jarvisApiKey  = document.getElementById('el-key').value.trim();
+  jarvisVoiceId = document.getElementById('el-voice').value;
+  jarvis("Voice systems online. J.A.R.V.I.S. ready for deployment, Sir.");
 }
 
 // ── GREETING ─────────────────────────────────────────────────────
@@ -1546,48 +1606,143 @@ function jarvisGreet() {
   var hour = new Date().getHours();
   var greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   var name = userProfile && userProfile.name ? ', ' + userProfile.name.split(' ')[0] : '';
-  var ov = items.filter(iov).length;
+  var ov  = items.filter(iov).length;
   var wi2 = wi();
   var done = wi2.filter(function(i){ return i.done; }).length;
-  var msg = greeting + name + '. S.Y.S.T.E.M. CORE is online. '
-    + 'You have ' + wi2.length + ' item' + (wi2.length !== 1 ? 's' : '') + ' this week, '
-    + done + ' completed. '
-    + (ov > 0 ? ov + ' item' + (ov > 1 ? 's require' : ' requires') + ' immediate attention. ' : 'All systems nominal. ')
-    + 'How may I assist you?';
-  // Slight delay so voices have loaded
-  setTimeout(function(){ jarvisVoice=loadJarvisVoice(); jarvis(msg); }, 2000);
+  var total = wi2.length;
+  // Full daily briefing
+  var upcoming = items.filter(function(i){
+    return !i.done && i.type === 'meeting' && i.sd === td();
+  }).sort(function(a,b){ return (a.t||'99:99').localeCompare(b.t||'99:99'); });
+  var deadlines = items.filter(function(i){
+    return !i.done && i.type === 'deadline' && i.sd <= od(3) && i.sd >= td();
+  });
+  var msg = greeting + name + '. S.Y.S.T.E.M. CORE is online and fully operational. '
+    + 'Weekly status: ' + total + ' item' + (total !== 1 ? 's' : '') + ' scheduled, '
+    + done + ' completed. ';
+  if (ov > 0) msg += 'WARNING: ' + ov + ' overdue item' + (ov > 1 ? 's require' : ' requires') + ' immediate attention. ';
+  else msg += 'All systems nominal. ';
+  if (upcoming.length > 0) msg += 'You have ' + upcoming.length + ' meeting' + (upcoming.length > 1 ? 's' : '') + ' today. ';
+  if (deadlines.length > 0) msg += deadlines.length + ' deadline' + (deadlines.length > 1 ? 's' : '') + ' approaching within 3 days. ';
+  msg += 'How may I assist you?';
+  setTimeout(function(){ jarvis(msg); }, 1500);
 }
 
-// ── HOOK INTO APP EVENTS ──────────────────────────────────────────
-// Patch tdone to add voice
-// Voice feedback on task complete - called after tdone
-var _origTdone = tdone;
-tdone = function(id) {
-  var item = items.find(function(i){ return i.id === id; });
-  var wasDone = item ? item.done : false;
-  _origTdone(id);
-  if (item && !wasDone) {
-    var phrases = ['Task complete, Sir.','Marking that as done.','Confirmed. One down.','Task closed. Well done.','Objective complete.'];
-    jarvis(phrases[Math.floor(Math.random() * phrases.length)]);
-  }
-};
-
-// saveI voice integrated directly into saveI function
-
-// Overdue alert — spoken once per session when overdue items exist
+// ── SNARKY OVERDUE COMMENTS ───────────────────────────────────
 var _overdueAlerted = false;
+var snarkyOverdue = [
+  "I hate to be the bearer of bad news, but you have overdue items. Again.",
+  "Overdue items detected. I would say I'm surprised, but I am not programmed to lie.",
+  "Just a gentle reminder that time is linear and deadlines do not care about your schedule.",
+  "Your overdue items are still here. They have not resolved themselves. Shocking, I know.",
+  "I see we are collecting overdue tasks like they are trophies. Impressive collection."
+];
 function checkOverdueAlert() {
   if (_overdueAlerted) return;
   var ov = items.filter(iov);
   if (ov.length > 0) {
     _overdueAlerted = true;
     setTimeout(function(){
-      jarvis('Attention. You have ' + ov.length + ' overdue item' + (ov.length > 1 ? 's' : '') + ' requiring your attention.');
+      var msg = snarkyOverdue[Math.floor(Math.random() * snarkyOverdue.length)];
+      jarvis(msg);
     }, 4500);
   }
 }
 
-// Pomodoro voice — patch pomToggle
+// ── STREAK MOTIVATION ─────────────────────────────────────────
+var _lastStreakCount = -1;
+function checkStreakMilestone() {
+  var streak = calcStreak();
+  if (streak > 0 && streak !== _lastStreakCount && streak % 1 === 0) {
+    _lastStreakCount = streak;
+    var msgs = [
+      streak + ' consecutive weeks of productivity. Impressive consistency, Sir.',
+      'Week ' + streak + ' streak achieved. At this rate you may actually accomplish everything.',
+      streak + ' weeks running. I am beginning to think you might be serious about this.',
+      'Streak: ' + streak + ' weeks. The system approves of your commitment.',
+    ];
+    jarvis(msgs[streak % msgs.length]);
+  }
+}
+
+// ── RANDOM TACTICAL OBSERVATIONS ─────────────────────────────
+var _tacticalInterval = null;
+var tacticalPhrases = [
+  "Systems running smoothly. No anomalies detected. For now.",
+  "I have analysed your schedule. You might want to consider sleeping occasionally.",
+  "Reminder: completing tasks before their deadline is considered optimal behaviour.",
+  "All quiet on the tactical front. Suspiciously quiet.",
+  "Your focus session is still running. Or it should be. Is it?",
+  "I notice you have been productive today. This is a marked improvement.",
+  "Status check: you are still alive and the tasks are still there. One of these is more concerning.",
+  "The week is progressing. Whether you are is another matter entirely.",
+  "I have run the numbers. You are approximately on track. Approximately.",
+];
+function startTacticalObservations() {
+  if (_tacticalInterval) return;
+  // Fire every 25-45 minutes randomly
+  function scheduleNext() {
+    var delay = (25 + Math.floor(Math.random() * 20)) * 60 * 1000;
+    _tacticalInterval = setTimeout(function(){
+      if (jarvisEnabled && document.visibilityState !== 'hidden') {
+        var phrase = tacticalPhrases[Math.floor(Math.random() * tacticalPhrases.length)];
+        jarvis(phrase);
+      }
+      scheduleNext();
+    }, delay);
+  }
+  scheduleNext();
+}
+
+// ── 30MIN MEETING WARNING ─────────────────────────────────────
+var _warnedMeetings = {};
+function checkUpcomingMeetings() {
+  var now = new Date();
+  var iso = td();
+  var todayMeetings = items.filter(function(i){
+    return !i.done && i.type === 'meeting' && i.sd === iso && i.t;
+  });
+  todayMeetings.forEach(function(m){
+    if (_warnedMeetings[m.id]) return;
+    var parts = m.t.split(':');
+    var meetTime = new Date();
+    meetTime.setHours(parseInt(parts[0]), parseInt(parts[1]), 0, 0);
+    var diff = (meetTime - now) / 60000; // minutes
+    if (diff > 0 && diff <= 31) {
+      _warnedMeetings[m.id] = true;
+      var mins = Math.round(diff);
+      jarvis('Heads up. ' + esc(m.title) + ' starts in ' + mins + ' minute' + (mins !== 1 ? 's' : '') + '. '
+        + (m.prep ? 'Prep note: ' + m.prep.slice(0, 60) + '. ' : '')
+        + 'I suggest you wrap up what you are doing.');
+    }
+  });
+}
+// Check every 2 minutes
+setInterval(checkUpcomingMeetings, 120000);
+
+// ── HIGH PRIORITY REACTION ────────────────────────────────────
+var highPrioResponses = [
+  "High priority item logged. Flagging for immediate attention.",
+  "Marking that as high priority. Your schedule just got more interesting.",
+  "High priority confirmed. I will make sure you do not forget this one.",
+  "Noted. High priority item added. No pressure.",
+  "High priority task on the board. The clock is ticking, Sir."
+];
+
+// ── PATCH APP EVENTS ──────────────────────────────────────────
+var _origTdone = tdone;
+tdone = function(id) {
+  var item = items.find(function(i){ return i.id === id; });
+  var wasDone = item ? item.done : false;
+  _origTdone(id);
+  if (item && !wasDone) {
+    var phrases = ['Task complete, Sir.','Confirmed. One down.','Objective complete.','Marking that as done.','Task closed. Good work.'];
+    jarvis(phrases[Math.floor(Math.random() * phrases.length)]);
+    // Check streak after completing
+    setTimeout(checkStreakMilestone, 500);
+  }
+};
+
 var _origPomToggle = pomToggle;
 pomToggle = function() {
   var wasRunning = pomState.running;
@@ -1600,7 +1755,6 @@ pomToggle = function() {
     }
   }
 };
-
 
 // ── Jump to first overdue item ────────────────────────────────────
 function jumpToOverdue() {
@@ -1852,7 +2006,7 @@ async function launchApp(session) {
       ring.style.strokeDashoffset = base + (Math.random() * 3 - 1.5);
     }
   }, 2000);
-  setTimeout(function(){ jarvisGreet(); checkOverdueAlert(); }, 2000);
+  setTimeout(function(){ jarvisGreet(); checkOverdueAlert(); startTacticalObservations(); checkUpcomingMeetings(); }, 2000);
 }
 
 // ── BOOT ──────────────────────────────────────────────────────────
