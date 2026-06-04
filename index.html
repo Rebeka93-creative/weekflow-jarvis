@@ -1490,17 +1490,14 @@ function wsFallbackSpeak(text) {
 // ── ElevenLabs TTS ───────────────────────────────────────────
 async function elSpeak(text) {
   try {
-    var res = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + jarvisVoiceId, {
+    var proxyUrl = 'https://snowy-boat-a311.rebeka-reese.workers.dev/';
+    var res = await fetch(proxyUrl, {
       method: 'POST',
-      headers: {
-        'xi-api-key': jarvisApiKey,
-        'Content-Type': 'application/json',
-        'Accept': 'audio/mpeg'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        text: text,
-        model_id: 'eleven_multilingual_v2',
-        voice_settings: { stability: 0.55, similarity_boost: 0.85, style: 0.1, use_speaker_boost: true }
+        text:     text,
+        voice_id: jarvisVoiceId,
+        api_key:  jarvisApiKey
       })
     });
     if (!res.ok) throw new Error('EL error ' + res.status);
