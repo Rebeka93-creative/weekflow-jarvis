@@ -1490,7 +1490,7 @@ function wsFallbackSpeak(text) {
 // ── ElevenLabs TTS ───────────────────────────────────────────
 async function elSpeak(text) {
   try {
-    var res = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + jarvisVoiceId + '/stream', {
+    var res = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + jarvisVoiceId, {
       method: 'POST',
       headers: {
         'xi-api-key': jarvisApiKey,
@@ -1499,7 +1499,7 @@ async function elSpeak(text) {
       },
       body: JSON.stringify({
         text: text,
-        model_id: 'eleven_monolingual_v1',
+        model_id: 'eleven_multilingual_v2',
         voice_settings: { stability: 0.55, similarity_boost: 0.85, style: 0.1, use_speaker_boost: true }
       })
     });
