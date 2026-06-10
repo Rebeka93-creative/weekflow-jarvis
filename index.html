@@ -1450,7 +1450,7 @@ var jarvisEnabled  = true;
 var hasGreeted     = false;
 var jarvisApiKey   = localStorage.getItem('wfsys_el_key') || '';
 // Best ElevenLabs voice for Jarvis: "Adam" — deep, authoritative
-var jarvisVoiceId  = localStorage.getItem('wfsys_el_voice') || 'pNInz6obpgDQGcFmaJgB';
+var jarvisVoiceId  = localStorage.getItem('wfsys_el_voice') || 'en-GB-Neural2-B';
 var jarvisQueue    = [];
 var jarvisSpeaking = false;
 var jarvisLastText = '';
@@ -1490,18 +1490,37 @@ function wsFallbackSpeak(text) {
 // ── ElevenLabs TTS ───────────────────────────────────────────
 async function elSpeak(text) {
   try {
-    var proxyUrl = 'https://snowy-boat-a311.rebeka-reese.workers.dev/';
-    var res = await fetch(proxyUrl, {
+    // Google Cloud TTS — works directly from browser, no CORS issues
+    var res = await fetch('https://texttospeech.googleapis.com/v1/text:synthesize?key=' + jarvisApiKey, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        text:     text,
-        voice_id: jarvisVoiceId,
-        api_key:  jarvisApiKey
+        input: { text: text },
+        voice: {
+          languageCode: 'en-GB',
+          name: jarvisVoiceId,
+          ssmlGender: 'MALE'
+        },
+        audioConfig: {
+          audioEncoding: 'MP3',
+          speakingRate: 0.9,
+          pitch: -4.0,
+          volumeGainDb: 2.0,
+          effectsProfileId: ['headphone-class-device']
+        }
       })
     });
-    if (!res.ok) throw new Error('EL error ' + res.status);
-    var blob = await res.blob();
+    if (!res.ok) {
+      var errData = await res.json();
+      throw new Error('Google TTS error ' + res.status + ': ' + JSON.stringify(errData));
+    }
+    var data = await res.json();
+    if (!data.audioContent) throw new Error('No audio content returned');
+    // Google returns base64 MP3 — decode and play
+    var binary = atob(data.audioContent);
+    var bytes  = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    var blob = new Blob([bytes], { type: 'audio/mpeg' });
     var url  = URL.createObjectURL(blob);
     if (jarvisAudio) { jarvisAudio.pause(); URL.revokeObjectURL(jarvisAudio.src); }
     jarvisAudio = new Audio(url);
@@ -1511,7 +1530,7 @@ async function elSpeak(text) {
     jarvisSpeaking = true;
     jarvisAudio.play();
   } catch(err) {
-    console.warn('ElevenLabs TTS failed, falling back to Web Speech:', err.message);
+    console.warn('Google TTS failed, falling back to Web Speech:', err.message);
     wsFallbackSpeak(text);
   }
 }
@@ -1568,14 +1587,16 @@ function openJarvisSettings() {
   document.getElementById("mtitle").textContent = "// J.A.R.V.I.S VOICE SETTINGS";
   document.getElementById("mbody").innerHTML =
     '<div style="margin-bottom:12px;"><div style="font-family:Space Mono,monospace;font-size:8px;color:#869397;letter-spacing:.1em;margin-bottom:5px;">ELEVENLABS API KEY</div>'
-    +'<input class="inp" id="el-key" value="'+ea(jarvisApiKey)+'" placeholder="sk_..." type="password"/>'
-    +'<div style="font-family:Space Mono,monospace;font-size:8px;color:#869397;margin-top:5px;">Get free key at <a href="https://elevenlabs.io" target="_blank" style="color:#4cd7f6;">elevenlabs.io</a></div></div>'
+    +'<input class="inp" id="el-key" value="'+ea(jarvisApiKey)+'" placeholder="AIza..." type="password"/>'
+    +'<div style="font-family:Space Mono,monospace;font-size:8px;color:#869397;margin-top:5px;">Get free key at <a href="https://console.cloud.google.com" target="_blank" style="color:#4cd7f6;">Google Cloud Console</a> — 1M chars/month free</div></div>'
     +'<div style="margin-bottom:12px;"><div style="font-family:Space Mono,monospace;font-size:8px;color:#869397;letter-spacing:.1em;margin-bottom:5px;">VOICE ID</div>'
     +'<select class="inp" id="el-voice">'
-    +'<option value="pNInz6obpgDQGcFmaJgB"'+(jarvisVoiceId==='pNInz6obpgDQGcFmaJgB'?' selected':'')+'>Adam (deep, authoritative) — recommended</option>'
-    +'<option value="VR6AewLTigWG4xSOukaG"'+(jarvisVoiceId==='VR6AewLTigWG4xSOukaG'?' selected':'')+'>Arnold (strong, confident)</option>'
-    +'<option value="ErXwobaYiN019PkySvjV"'+(jarvisVoiceId==='ErXwobaYiN019PkySvjV'?' selected':'')+'>Antoni (warm, professional)</option>'
-    +'<option value="yoZ06aMxZJJ28mfd3POQ"'+(jarvisVoiceId==='yoZ06aMxZJJ28mfd3POQ'?' selected':'')+'>Sam (calm, measured)</option>'
+    +'<option value="en-GB-Neural2-B"'+(jarvisVoiceId==='en-GB-Neural2-B'?' selected':'')+'>Neural2-B British Male — deep, Jarvis-like ★</option>'
+    +'<option value="en-GB-Neural2-D"'+(jarvisVoiceId==='en-GB-Neural2-D'?' selected':'')+'>Neural2-D British Male — authoritative</option>'
+    +'<option value="en-GB-Wavenet-B"'+(jarvisVoiceId==='en-GB-Wavenet-B'?' selected':'')+'>Wavenet-B British Male — classic, clear</option>'
+    +'<option value="en-GB-Wavenet-D"'+(jarvisVoiceId==='en-GB-Wavenet-D'?' selected':'')+'>Wavenet-D British Male — warm, measured</option>'
+    +'<option value="en-US-Neural2-D"'+(jarvisVoiceId==='en-US-Neural2-D'?' selected':'')+'>Neural2-D American Male — smooth</option>'
+    +'<option value="en-US-Wavenet-D"'+(jarvisVoiceId==='en-US-Wavenet-D'?' selected':'')+'>Wavenet-D American Male — neutral</option>'
     +'</select></div>'
     +'<div style="margin-bottom:4px;"><button onclick="testJarvisVoice()" class="hud-btn" style="background:rgba(76,215,246,.1);border:1px solid rgba(76,215,246,.3);border-radius:.25rem;padding:6px 14px;font-family:Space Mono,monospace;font-size:9px;color:#4cd7f6;letter-spacing:.08em;">▶ TEST VOICE</button></div>';
   document.getElementById("mfoot").innerHTML =
@@ -1985,6 +2006,9 @@ async function doAuth() {
 
 async function launchApp(session) {
   _uid = session.user.id;
+  // Reload voice settings from localStorage on every launch
+  jarvisApiKey  = localStorage.getItem('wfsys_el_key')   || jarvisApiKey;
+  jarvisVoiceId = localStorage.getItem('wfsys_el_voice') || jarvisVoiceId;
   // Hide auth screen
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('user-menu-btn').style.display = '';
