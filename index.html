@@ -903,7 +903,7 @@ function showIM(d,editing){
 
   document.getElementById("mbody").innerHTML=
     // Type toggle buttons
-    '<div style="display:flex;gap:5px;margin-bottom:14px;">'
+    '<input type="hidden" id="f-type" value="'+t+'"/>' +'<div style="display:flex;gap:5px;margin-bottom:14px;">'
     +Object.keys(TL).map(function(k){
       var sel=t===k; var col=typeColors[k];
       return '<button onclick="showIM(Object.assign(getFormData(),{type:\''+k+'\'}),'+editing+')" class="hud-btn" style="flex:1;padding:7px 4px;border-radius:.25rem;font-family:Space Mono,monospace;font-size:9px;letter-spacing:.04em;border:1px solid '+(sel?col:'rgba(76,215,246,.15)')+';background:'+(sel?'rgba(76,215,246,.08)':'transparent')+';color:'+(sel?col:'#869397')+';">'
@@ -964,6 +964,56 @@ function getFormData(){
     prep: (document.getElementById('f-prep')||{}).value||'',
     notes:(document.getElementById('f-notes')||{}).value||''
   };
+}
+
+
+function saveI(){
+  var ttl=document.getElementById("f-ttl").value.trim();
+  if(!ttl)return;
+  var s=document.getElementById("f-sd").value||td();
+  var e=document.getElementById("f-ed").value||s;
+  if(e<s)e=s;
+  var rdlyEl=document.getElementById("f-rdly");
+  var rdly=rdlyEl?(rdlyEl.type==='checkbox'?rdlyEl.checked:rdlyEl.value==='1'):false;
+  var data={
+    title:ttl,
+    sd:s,
+    ed:e,
+    type:document.getElementById("f-type")?document.getElementById("f-type").value:(document.querySelector('#mbody button[style*="rgba"]')?'task':'task'),
+    t:(document.getElementById("f-t")||{value:''}).value,
+    fb:(document.getElementById("f-fb")||{value:''}).value,
+    dur:(document.getElementById("f-dur")||{value:''}).value.trim(),
+    prio:document.getElementById("f-prio").value,
+    rdly:rdly,
+    proj:document.getElementById("f-proj").value,
+    prep:(document.getElementById("f-prep")||{value:''}).value.trim(),
+    notes:(document.getElementById("f-notes")||{value:''}).value.trim()
+  };
+  // Get type from the active type button if f-type hidden field not present
+  if(!document.getElementById("f-type")){
+    var activeBtn=document.querySelector('#mbody button.hud-btn[style*="rgba(76,215,246,.08)"]');
+    // type is embedded in onclick
+  }
+  if(mm==="edit"){
+    var idx=items.findIndex(function(i){return i.id===eid;});
+    if(idx>-1){items[idx]=Object.assign({},items[idx],data);dbUpsertItem(items[idx]);}
+    toast("ITEM UPDATED");
+  } else {
+    var ni=Object.assign({id:"i"+Date.now(),done:false},data);
+    items.push(ni);dbUpsertItem(ni);toast("ITEM CREATED");
+    setTimeout(function(){
+      if(data.prio==='high'){
+        jarvis(highPrioResponses[Math.floor(Math.random()*highPrioResponses.length)]+' '+data.title+'.');
+      } else {
+        jarvis('New item logged. '+data.title+'. Added to your schedule.');
+      }
+    },300);
+    var pd=pi(s),mn=gwd(0)[0],dm=new Date(pd),dw=dm.getDay();
+    dm.setDate(dm.getDate()+(dw===0?-6:1-dw));dm.setHours(0,0,0,0);
+    wo=Math.round((dm-mn)/604800000);
+    if(cv!=="project")cv="week";
+  }
+  cmod();render();
 }
 
 function openPM(editProj){
