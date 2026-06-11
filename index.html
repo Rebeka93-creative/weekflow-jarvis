@@ -220,6 +220,17 @@ textarea.inp{resize:vertical;min-height:76px;line-height:1.6;}
       <div class="hud-prog" style="width:60px;"><div class="hud-prog-fill" id="prog-fill" style="width:0%"></div></div>
     </div>
     <div id="dl-badge" style="display:none;font-family:'Space Mono',monospace;font-size:9px;padding:3px 8px;border-radius:0.25rem;border:1px solid rgba(255,180,171,.3);background:rgba(255,180,171,.08);color:#ffb4ab;letter-spacing:.08em;"></div>
+    <div id="user-menu-btn" style="display:none;position:relative;flex-shrink:0;">
+      <button onclick="toggleUserMenu()" style="background:rgba(76,215,246,.08);border:1px solid rgba(76,215,246,.2);border-radius:.25rem;padding:4px 10px;font-family:Space Mono,monospace;font-size:9px;color:#4cd7f6;cursor:pointer;letter-spacing:.06em;display:flex;align-items:center;gap:6px;">
+        <span class="material-symbols-outlined" style="font-size:13px;">person</span>
+        <span id="user-email-lbl"></span>
+      </button>
+      <div id="user-dropdown" style="display:none;position:absolute;right:0;top:36px;background:rgba(14,20,22,0.97);border:1px solid rgba(76,215,246,.25);border-radius:.25rem;padding:5px;min-width:160px;box-shadow:0 8px 24px rgba(0,0,0,.6);z-index:200;">
+        <button onclick="doSignOut()" style="width:100%;background:transparent;border:none;font-family:Space Mono,monospace;font-size:9px;color:#ffb4ab;cursor:pointer;padding:7px 10px;text-align:left;border-radius:.25rem;letter-spacing:.06em;display:flex;align-items:center;gap:8px;" onmouseover="this.style.background='rgba(255,180,171,.1)'" onmouseout="this.style.background='transparent'">
+          <span class="material-symbols-outlined" style="font-size:12px;">logout</span> SIGN OUT
+        </button>
+      </div>
+    </div>
   </div>
 </header>
 <!-- ── AMBIENT AUDIO PLAYER ── -->
@@ -2196,17 +2207,7 @@ async function doSignOut() {
 </div>
 
 <!-- ── USER MENU (top-right when logged in) ── -->
-<div id="user-menu-btn" style="display:none;position:fixed;top:14px;right:60px;z-index:51;">
-  <button onclick="toggleUserMenu()" style="background:rgba(76,215,246,.08);border:1px solid rgba(76,215,246,.2);border-radius:.25rem;padding:4px 10px;font-family:Space Mono,monospace;font-size:9px;color:#4cd7f6;cursor:pointer;letter-spacing:.06em;display:flex;align-items:center;gap:6px;">
-    <span class="material-symbols-outlined" style="font-size:13px;">person</span>
-    <span id="user-email-lbl"></span>
-  </button>
-  <div id="user-dropdown" style="display:none;position:absolute;right:0;top:32px;background:rgba(14,20,22,0.97);border:1px solid rgba(76,215,246,.25);border-radius:.25rem;padding:5px;min-width:140px;box-shadow:0 8px 24px rgba(0,0,0,.6);">
-    <button onclick="doSignOut()" style="width:100%;background:transparent;border:none;font-family:Space Mono,monospace;font-size:9px;color:#ffb4ab;cursor:pointer;padding:7px 10px;text-align:left;border-radius:.25rem;letter-spacing:.06em;display:flex;align-items:center;gap:8px;" onmouseover="this.style.background='rgba(255,180,171,.1)'" onmouseout="this.style.background='transparent'">
-      <span class="material-symbols-outlined" style="font-size:12px;">logout</span> SIGN OUT
-    </button>
-  </div>
-</div>
+<!-- user menu moved into header -->
 
 
 <script>
